@@ -2,9 +2,12 @@ const { Client, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, 
 const fs = require('fs');
 
 const TOKEN         = process.env.TOKEN;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY; // ta clé API Anthropic
+const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY; // ta clé API
 if (!TOKEN)         { console.error("❌ TOKEN manquant"); process.exit(1); }
-if (!ANTHROPIC_KEY) { console.error("❌ ANTHROPIC_KEY manquant"); process.exit(1); }
+if (!OPENROUTER_KEY) {
+  console.error("❌ OPENROUTER_KEY manquant");
+  process.exit(1);
+}
 
 const DB_FILE = './ia_config.json';
 function loadDB() {
@@ -51,23 +54,39 @@ const commands = [
 
 // ── Appel API Anthropic ──────────────────────────────────────
 async function askClaude(messages, system) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const formattedMessages = messages.map(m => ({
+    role: m.role,
+    content: m.content
+  }));
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${OPENROUTER_KEY}`,
     },
     body: JSON.stringify({
-      model: 'claude-3-5-haiku-latest',
+      model: 'deepseek/deepseek-chat:free',
+      messages: [
+        {
+          role: 'system',
+          content: system,
+        },
+        ...formattedMessages
+      ],
       max_tokens: 1024,
-      system,
-      messages,
     }),
   });
+
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.content[0].text;
+
+  console.log(data);
+
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
+
+  return data.choices[0].message.content;
 }
 
 // ── Gestion historique ───────────────────────────────────────
